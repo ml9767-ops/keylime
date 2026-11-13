@@ -26,34 +26,9 @@ jobs:
         run: python3 -m pip install build
 
       - name: Build under SBOMit
-        uses: Uk-jake/sbomit-pipeline-runner@main
-        with:
-          build-command: python3 -m build --sdist --wheel --outdir dist/ .
-          sbom-format: spdx23
-          use-syft: true
+        run: python3 -m build --sdist --wheel --outdir dist/ .
+
       - name: Record Build Results
         run: |
-          echo "Build outputs:"
-          find dist -maxdepth 1 -type f -printf '%f (%s bytes)\n' | sort
-
-          echo "SHA256 checksums:"
-          find dist -maxdepth 1 -type f -print0 | sort -z | xargs -0 -r sha256sum | tee build-results.txt
-
-      - name: Upload Build Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-results-${{ github.run_id }}
-          path: |
-            dist/
-            build-results.txt
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Show Build Results
-        shell: bash
-        run: |
-          echo "### Build Results" >> "$GITHUB_STEP_SUMMARY"
-          echo '```text' >> "$GITHUB_STEP_SUMMARY"
-          ls -lh dist/ >> "$GITHUB_STEP_SUMMARY"
-          sha256sum dist/*.whl dist/*.tar.gz >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          ls -lh dist/
+          sha256sum dist/*.whl dist/*.tar.gz
