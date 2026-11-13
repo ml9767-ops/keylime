@@ -25,8 +25,12 @@ jobs:
       - name: Install build frontend
         run: python3 -m pip install build
 
-      - name: Build
-        run: python3 -m build --sdist --wheel --outdir dist/ .
+      - name: Build under SBOMit
+        uses: Uk-jake/sbomit-pipeline-runner@main
+        with:
+          build-command: python3 -m build --sdist --wheel --outdir dist/ .
+          sbom-format: spdx23
+          use-syft: true
 
       - name: Record Build Results
         run: |
