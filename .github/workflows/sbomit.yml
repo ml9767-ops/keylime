@@ -1,21 +1,45 @@
-name: Build Time Test
+name: Compare Keylime Build Results
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  sbom:
+  # 1. Baseline build
+  baseline:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          persist-credentials: false
+          python-version: '3.11'
+
+      - name: Install build frontend
+        run: python3 -m pip install build
+
+      - name: Build
+        run: python3 -m build --sdist --wheel --outdir dist/ .
+
+      - name: Upload Baseline Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-results
+          path: dist/
+          if-no-files-found: error
+
+  # 2. SBOMit build
+  sbomit:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -32,7 +56,66 @@ jobs:
           sbom-format: spdx23
           use-syft: true
 
-      - name: Record Build Results
+      - name: Upload SBOMit Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbomit-results
+          path: dist/
+          if-no-files-found: error
+
+  # 3. Compare build outputs
+  compare:
+    needs: [baseline, sbomit]
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Download Baseline Results
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-results
+          path: baseline/
+
+      - name: Download SBOMit Results
+        uses: actions/download-artifact@v4
+        with:
+          name: sbomit-results
+          path: sbomit/
+
+      - name: Compare Build Results
+        shell: bash
         run: |
-          ls -lh dist/
-          sha256sum dist/*.whl dist/*.tar.gz
+          set -euo pipefail
+
+          echo "=== Archive SHA256 ==="
+          sha256sum baseline/* sbomit/*
+
+          mkdir -p baseline-wheel sbomit-wheel
+          mkdir -p baseline-sdist sbomit-sdist
+
+          # Extract wheels
+          unzip -q baseline/*.whl -d baseline-wheel
+          unzip -q sbomit/*.whl -d sbomit-wheel
+
+          # Extract source distributions
+          tar -xzf baseline/*.tar.gz -C baseline-sdist
+          tar -xzf sbomit/*.tar.gz -C sbomit-sdist
+
+          status=0
+
+          echo "=== Comparing Wheel Contents ==="
+          if diff -qr baseline-wheel sbomit-wheel; then
+            echo "Wheel contents: IDENTICAL"
+          else
+            echo "Wheel contents: DIFFERENT"
+            status=1
+          fi
+
+          echo "=== Comparing Source Distribution Contents ==="
+          if diff -qr baseline-sdist sbomit-sdist; then
+            echo "Source distribution contents: IDENTICAL"
+          else
+            echo "Source distribution contents: DIFFERENT"
+            status=1
+          fi
+
+          exit "$status"
