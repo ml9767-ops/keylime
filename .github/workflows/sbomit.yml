@@ -48,3 +48,12 @@ jobs:
             build-results.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Show Build Results
+        shell: bash
+        run: |
+          echo "### Build Results" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          ls -lh dist/ >> "$GITHUB_STEP_SUMMARY"
+          sha256sum dist/*.whl dist/*.tar.gz >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
